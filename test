@@ -1,0 +1,252 @@
+
+
+package com.ascent.powerpay.rbac.integrationTest;
+import com.ascent.powerpay.kernel.tenant.TenantInfo;
+import com.ascent.powerpay.rbac.AbstractRestDocumentationTestCase;
+import com.ascent.powerpay.rbac.domain.ManagedEntity;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.web.server.LocalServerPort;
+import org.springframework.http.*;
+import org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders;
+import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
+import javax.validation.constraints.NotNull;
+import java.io.IOException;
+import static org.junit.Assert.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+@RunWith(SpringRunner.class)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Transactional
+class ManagedEntityServiceTests extends AbstractRestDocumentationTestCase {
+    @LocalServerPort
+    private int port;
+    private String getRootUrl()
+    {
+        return "http://localhost:" + port;
+    }
+    private ManagedEntity[] getAllManagedEntity() throws Exception {
+        MvcResult mvcResult = this.mockMvc.perform(RestDocumentationRequestBuilders
+                        .get("/manage/managedentity")
+                        .header(TenantInfo.TENANT_ID_KEY, TEST_TENANT)
+                        .accept(MediaType.APPLICATION_JSON))
+                        .andExpect(status().isOk())
+                        .andReturn();
+        ObjectMapper mapper = new ObjectMapper();
+        ManagedEntity[] managedEntityResult = mapper.readValue(mvcResult.getResponse().getContentAsByteArray(), ManagedEntity[].class);
+        return managedEntityResult;
+    }
+    @NotNull
+    private ManagedEntity getManagedEntity(String code, String entityType, String entityName)
+    {
+        ManagedEntity managedEntity = new ManagedEntity();
+        managedEntity.setCode(code);
+        managedEntity.setType(entityType);
+        managedEntity.setName(entityName);
+        return managedEntity;
+    }
+    //:TODO remove the following
+//    private ManagedEntity addManagedEntityAPI(ManagedEntity me)
+//    {
+//        HttpEntity<ManagedEntity> entity = getManagedEntityHttpEntity(me);
+//        ResponseEntity<ManagedEntity> result=this.restTemplate.postForEntity(getRootUrl() +
+//                "/manage/managedentity", entity, ManagedEntity.class);
+//        Assert.assertEquals(201,result.getStatusCodeValue());
+//        ManagedEntity managedEntity = result.getBody();
+//        return managedEntity;
+//
+//    }
+    private ManagedEntity addManagedEntityAPI(ManagedEntity me) throws Exception {
+        Gson gson = new Gson();
+        String meStr = gson.toJson(me);
+        System.out.println(meStr);
+        MvcResult mvcResult = this.mockMvc.perform(RestDocumentationRequestBuilders
+                .post("/manage/managedentity")
+                .header(TenantInfo.TENANT_ID_KEY, TEST_TENANT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(meStr)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isCreated())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
+                .andReturn();
+        ManagedEntity managedEntityResult = getManagedEntity(mvcResult);
+        return managedEntityResult;
+    }
+    private ManagedEntity updateManagedEntityAPI(ManagedEntity me) throws Exception {
+        Gson gson = new Gson();
+        String meStr = gson.toJson(me);
+        MvcResult mvcResult = this.mockMvc.perform(RestDocumentationRequestBuilders
+                .put("/manage/managedentity/" + me.getCode())
+                .header(TenantInfo.TENANT_ID_KEY, TEST_TENANT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(meStr)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
+                .andReturn();
+        ManagedEntity managedEntityResult = getManagedEntity(mvcResult);
+        return managedEntityResult;
+    }
+    private ManagedEntity getManagedEntity(MvcResult mvcResult) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readValue(mvcResult.getResponse().getContentAsByteArray(), ManagedEntity.class);
+    }
+    private ManagedEntity[] getManagedEntityArray(MvcResult mvcResult) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readValue(mvcResult.getResponse().getContentAsByteArray(), ManagedEntity[].class);
+    }
+    @Test
+    public void testSaveManagedEntity() throws Exception
+    {
+        ManagedEntity managedEntity = getManagedEntity("entityCodeForSave",
+                "entityTypeForSave", "entityNameForSave");
+        managedEntity = addManagedEntityAPI(managedEntity);
+        assertNotNull(managedEntity);
+        assertEquals("entityCodeForSave", managedEntity.getCode());
+        assertEquals("entityTypeForSave", managedEntity.getType());
+        assertEquals("entityNameForSave", managedEntity.getName());
+    }
+    @Test
+    public void testGetManagedEntityById() throws Exception {
+        ManagedEntity managedEntity = getManagedEntity("entityCode2",
+                "entityType2", "entityName2");
+        managedEntity = addManagedEntityAPI(managedEntity);
+        String id = managedEntity.getId();
+        managedEntity = getManagedEntityById(id);
+        assertNotNull(managedEntity);
+        assertEquals("entityCode2", managedEntity.getCode());
+        assertEquals("entityType2", managedEntity.getType());
+        assertEquals("entityName2", managedEntity.getName());
+    }
+    private ManagedEntity getManagedEntityById(String id) throws Exception {
+        ManagedEntity managedEntity;
+        MvcResult mvcResult = this.mockMvc.perform(RestDocumentationRequestBuilders
+                .get("/manage/managedentity/" + id)
+                .header(TenantInfo.TENANT_ID_KEY, TEST_TENANT)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+        managedEntity = getManagedEntity(mvcResult);
+        return managedEntity;
+    }
+    @Test
+    public void testGetManagedEntityByCode() throws Exception {
+        ManagedEntity managedEntity = getManagedEntity("entityCode3", "entityType3", "entityName3");
+        managedEntity = addManagedEntityAPI(managedEntity);
+        String code = managedEntity.getCode();
+        managedEntity = getManagedEntityByCode(code);
+        assertNotNull(managedEntity);
+        assertEquals("entityCode3", managedEntity.getCode());
+        assertEquals("entityType3", managedEntity.getType());
+        assertEquals("entityName3", managedEntity.getName());
+    }
+    private ManagedEntity getManagedEntityByCode(String code) throws Exception {
+        ManagedEntity managedEntity;
+        MvcResult mvcResult = this.mockMvc.perform(RestDocumentationRequestBuilders
+                .get("/manage/managedentity")
+                .header(TenantInfo.TENANT_ID_KEY, TEST_TENANT)
+                .param("code", code)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andReturn();
+                ManagedEntity[]  managedEntityArray = getManagedEntityArray(mvcResult);
+                assertEquals(1, managedEntityArray.length);
+        return managedEntityArray[0];
+    }
+    @Test
+    public void testGetAllManagedEntity() throws Exception {
+        ManagedEntity managedEntity = getManagedEntity("entityCode4", "entityType4",
+                "entityName4");
+        managedEntity = addManagedEntityAPI(managedEntity);
+        assertEquals("entityCode4", managedEntity.getCode());
+        assertEquals("entityType4", managedEntity.getType());
+        assertEquals("entityName4", managedEntity.getName());
+        managedEntity = getManagedEntity("entityCode5", "entityType5",
+                "entityName5");
+        managedEntity = addManagedEntityAPI(managedEntity);
+        ManagedEntity[] result = getAllManagedEntity();
+        assertNotNull(result);
+        assertTrue(result.length == 2);
+    }
+    @Test
+    public void testUpdateManagedEntity() throws Exception
+    {
+        ManagedEntity managedEntity = getManagedEntity("entityCode6", "entityType6",
+                "entityName6");
+        managedEntity = addManagedEntityAPI(managedEntity);
+        managedEntity.setName("updatedManagedEntityName");
+        managedEntity.setType("updatedManagedEntityType");
+        String code = managedEntity.getCode();
+        updateManagedEntityAPI(managedEntity);
+        managedEntity = getManagedEntityByCode(code);
+        assertNotNull(managedEntity);
+        assertEquals("entityCode6", managedEntity.getCode());
+        assertEquals("updatedManagedEntityType", managedEntity.getType());
+        assertEquals("updatedManagedEntityName", managedEntity.getName());
+    }
+    @Test
+    public void testDeleteManagedEntityById() throws Exception {
+        ManagedEntity managedEntity = getManagedEntity("entityCode7", "entityType7",
+                "entityName7");
+        managedEntity = addManagedEntityAPI(managedEntity);
+        String id = managedEntity.getId();
+        delete(id);
+        try {
+            this.mockMvc.perform(RestDocumentationRequestBuilders
+                    .get("/manage/managedentity/" + id)
+                    .header(TenantInfo.TENANT_ID_KEY, TEST_TENANT)
+                    .accept(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isBadRequest());
+        } catch (final Exception e) {
+            fail("object status should have been saved.");
+        }
+    }
+    @Test
+    public void testDeleteManagedEntityByCode() throws Exception {
+        ManagedEntity managedEntity = getManagedEntity("entityCode8", "entityType8",
+                "entityName8");
+        managedEntity = addManagedEntityAPI(managedEntity);
+        String code = managedEntity.getCode();
+        markForDelete(code);
+        try
+        {
+            ManagedEntity managedEntity1 = getManagedEntityByCode(code);
+            assertFalse(managedEntity1.isActive());
+        }
+        catch (final HttpClientErrorException e) {
+            fail("object status should have been saved.");
+        }
+    }
+    private void markForDelete(String code) throws Exception {
+        this.mockMvc.perform(RestDocumentationRequestBuilders
+                .delete("/manage/managedentity/")
+                .header(TenantInfo.TENANT_ID_KEY, TEST_TENANT)
+                .param("code", code)
+                .accept(MediaType.TEXT_PLAIN))
+                .andExpect(status().isOk());
+    }
+    private void delete(String id) throws Exception {
+        this.mockMvc.perform(RestDocumentationRequestBuilders
+                .delete("/manage/managedentity/internal/" + id)
+                .header(TenantInfo.TENANT_ID_KEY, TEST_TENANT)
+                .accept(MediaType.TEXT_PLAIN))
+                .andExpect(status().isOk());
+    }
+}
+
+
+
+
+
+
